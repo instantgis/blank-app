@@ -26,27 +26,26 @@ SAMPLE_PROMPT = ("Write the story for a magestic statue of Durga "
                  "at the indian sacred site of Ganga Talao next to a mysterious crator lake."
                  )
 
+# Inputs
 pre = st.text_area("Pre-Prompt", DEFAULT_PRE_PROMT)
-prompt = st.text_area("Prompt", SAMPLE_PROMPT)
-post = st.text_area("Post-Prompt", DEFAULT_POST_PROMPT)
+include_pre = st.toggle("Include pre-prompt", True)
 
-final_prompt = pre + " " + prompt + " " + post
+prompt = st.text_area("Prompt", SAMPLE_PROMPT)
+
+post = st.text_area("Post-Prompt", DEFAULT_POST_PROMPT)
+include_post = st.toggle("Include post-prompt", True)
+
+# Assemble final prompt
+final_prompt = ""
+if (include_pre):
+    final_prompt = pre + " "
+final_prompt = final_prompt + prompt + " "
+if (include_post):
+    final_prompt = final_prompt + post
+
 input = { "prompt": final_prompt}
 
-# def submit_clicked():
-#     st.session_state.clicked = True
-#     busy = True
-#     input = { "prompt": final_prompt}
-#     output = replicate.run(REPLICATE_MODEL_DEEPSEEK, input=input)
-#     st.write(output)
-
-# st.button("Submit", on_click=submit_clicked)
-
-# with st.expander("Processing", expanded=not busy):
-#     with st.spinner("Wait for it...", show_time=True):
-#         time.sleep(5)
-#     st.success("Done!")
-#     st.text_area("Response")
+final = st.text_area("Final-Prompt", final_prompt)
 
 def split_thinking_response(data):
     thinking = []
@@ -69,6 +68,12 @@ def split_thinking_response(data):
     thinking_str = ''.join(thinking).strip()
     # Combine all response elements into a single string
     response_str = ''.join(response).strip()
+
+    # Move the element with </think> to the response if it has leading or lagging characters
+    if "</think>" in thinking_str:
+        end_index = thinking_str.find("</think>")
+        thinking_str = thinking_str[:end_index].strip()
+        response_str = thinking_str[end_index + len("</think>"):].strip() + response_str
 
     return thinking_str, response_str
 
