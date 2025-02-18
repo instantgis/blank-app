@@ -11,10 +11,7 @@ DEFAULT_POST_PROMPT = ("Do not include any formatting in your answer. "
 
 REPLICATE_API_TOKEN = st.secrets["REPLICATE_API_TOKEN"]
 REPLICATE_MODEL_DEEPSEEK = st.secrets["REPLICATE_MODEL_DEEPSEEK"]
-REPLICATE_MODEL_KOKORO = st.secrets["REPLICATE_MODEL_KOKORO"]
-
-st.write(REPLICATE_MODEL_KOKORO)
-
+REPLICATE_MODEL_KOKORO = "jaaari/kokoro-82m:f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13"
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
 
@@ -30,9 +27,6 @@ voices = execute_query(st_supabase_client.table(
     "kokoro_voices").select("*"), ttl=0)
 # st.write(voices)
 
-def get_voices_info():
-    return [{"lang_code": voice["lang_code"], "name": voice["name"], "gender": voice["gender"]} for voice in voices.data]
-
 unique_lang_codes = list({item["lang_code"] for item in voices.data})
 # st.write(unique_lang_codes)
 
@@ -42,37 +36,29 @@ unique_languages = {item["code"]: item["name"] for item in languages.data}
 # st.write(languages)
 # st.write(unique_languages)
 
-
 def language_format_func(option):
     return unique_languages[option]
 
-
 gender_lookup = {"m": "Male", "f": "Female"}
-
 
 def gender_format_func(option):
     return gender_lookup[option]
 
-# st.write("Language", selected_language)
-# st.write("Gender", selected_gender)
-
-
 def filter_and_format_voices(lang_code, gender):
-    return [{"lang_code": voice["lang_code"], "name": voice["name"].split('_', 1)[1], "gender": voice["gender"]} for voice in voices.data if voice["lang_code"] == lang_code and voice["gender"] == gender]
+    return [{"lang_code": voice["lang_code"], "name": voice["name"], "gender": voice["gender"]} for voice in voices.data if voice["lang_code"] == lang_code and voice["gender"] == gender]
 
 def format_name(voice):
-    return voice["name"]
+    return voice["name"].split('_', 1)[1]
 
-has_output = False
-last_narrative = None
+if "last_narrative" not in st.session_state:
+    st.session_state["last_narrative"] = ""
+
+# st.write(st.session_state)
 
 st.title("🎈 Audio Guide")
 st.subheader(" Content Creator Assistant")
 guide = st.text_input("Guide", "Ganga Talao")
 poi = st.text_input("Point of Interest", "Durga")
-
-# st.write(REPLICATE_API_TOKEN)
-# st.write(REPLICATE_MODEL_DEEPSEEK)
 
 SAMPLE_PROMPT = ("Write the story for a magestic statue of Durga "
                  "standing next to a large lion "
@@ -131,7 +117,6 @@ def split_thinking_response(data):
 
     return thinking_str, response_str
 
-
 if st.button("Generate Narrative for: " + guide + "," + poi):
     with st.spinner('Generating Narrative…'):
         start_time = time.time()
@@ -139,32 +124,48 @@ if st.button("Generate Narrative for: " + guide + "," + poi):
         end_time = time.time()
         elapsed_time = end_time - start_time
         st.write(f"Narrative generated in {elapsed_time:.2f} seconds")
+        # st.write(output)
         thinking, response = split_thinking_response(output)
         st.text_area("Thinking", thinking)
         st.text_area("Response", response)
-        last_narrative = response
-        has_output = True
+        st.session_state["last_narrative"] = response
+        # st.text_area("last_narrative", st.session_state.last_narrative)
 
 selected_language = st.selectbox(
     "Languages", unique_languages, format_func=language_format_func)
+# st.write(selected_language)
+
 selected_gender = st.selectbox("Gender", options=list(
     gender_lookup.keys()), format_func=gender_format_func)
-selected_voice = st.selectbox("Voice", options=filter_and_format_voices(
-    selected_language, selected_gender), format_func=format_name)
+# st.write(selected_gender)
 
-voice_input = {
-    "text": last_narrative,
-    "voice": "af_nicole"
-}
+filtered_voices = filter_and_format_voices(
+    selected_language, selected_gender)
+# st.write(filtered_voices)
 
-if st.button("Generate Voice for: " + guide + "," + poi, disabled= not has_output):
+selected_voice = st.selectbox(
+    "Voice", options=filtered_voices, format_func=format_name)
+# st.write(selected_voice)
+
+if st.button("Generate Voice for: " + guide + "," + poi, disabled=len(st.session_state["last_narrative"]) == 0):
     with st.spinner('Generating Voice'):
         start_time = time.time()
+        voice_input = {
+            "text": st.session_state["last_narrative"],
+            "voice": selected_voice["name"],
+            "stream": "false"
+        }
+        st.write(voice_input)
         output = replicate.run(
             REPLICATE_MODEL_KOKORO,
-            input=voice_input
+            input=voice_input,
+            # Note: Make sure this is False otherwise you get a file
+            #       that st.audio cannot handle.
+            #       With this false you get a url back from replicate/kokoro
+            use_file_output=False
         )
         end_time = time.time()
         elapsed_time = end_time - start_time
         st.write(f"Voice generated in {elapsed_time:.2f} seconds")
         st.write(output)
+        st.audio(output, format="audio/wav")
