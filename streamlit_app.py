@@ -26,10 +26,8 @@ voices = execute_query(st_supabase_client.table(
     "kokoro_voices").select("*"), ttl=0)
 # st.write(voices)
 
-
 def get_voices_info():
     return [{"lang_code": voice["lang_code"], "name": voice["name"], "gender": voice["gender"]} for voice in voices.data]
-
 
 unique_lang_codes = list({item["lang_code"] for item in voices.data})
 # st.write(unique_lang_codes)
@@ -45,19 +43,15 @@ def language_format_func(option):
     return unique_languages[option]
 
 
-selected_language = st.selectbox(
-    "Languages", unique_languages, format_func=language_format_func)
-
 gender_lookup = {"m": "Male", "f": "Female"}
+
 
 def gender_format_func(option):
     return gender_lookup[option]
 
-selected_gender = st.selectbox("Gender", options=list(
-    gender_lookup.keys()), format_func=gender_format_func)
+# st.write("Language", selected_language)
+# st.write("Gender", selected_gender)
 
-st.write("Language", selected_language)
-st.write("Gender", selected_gender)
 
 def filter_and_format_voices(lang_code, gender):
     return [{"lang_code": voice["lang_code"], "name": voice["name"].split('_', 1)[1], "gender": voice["gender"]} for voice in voices.data if voice["lang_code"] == lang_code and voice["gender"] == gender]
@@ -65,9 +59,7 @@ def filter_and_format_voices(lang_code, gender):
 def format_name(voice):
     return voice["name"]
 
-selected_voice = st.selectbox("Voice", options=filter_and_format_voices(selected_language,selected_gender), format_func=format_name)
-
-busy = False
+has_output = False
 
 st.title("🎈 Audio Guide")
 st.subheader(" Content Creator Assistant")
@@ -102,7 +94,6 @@ if (include_post):
 input = {"prompt": final_prompt}
 
 final = st.text_area("Final-Prompt", final_prompt)
-
 
 def split_thinking_response(data):
     thinking = []
@@ -146,12 +137,18 @@ if st.button("Generate Narrative for: " + guide + "," + poi):
         thinking, response = split_thinking_response(output)
         st.text_area("Thinking", thinking)
         st.text_area("Response", response)
+        has_output = True
 
-# if response:
-#     st.write(response)
-#     if st.button("Generate Voice for: " + guide + "," + poi ):
-#         with st.spinner('Generating Voice'):
-#             start_time = time.time()
-#             end_time = time.time()
-#             elapsed_time = end_time - start_time
-#             st.write(f"Voice generated in {elapsed_time:.2f} seconds")
+selected_language = st.selectbox(
+    "Languages", unique_languages, format_func=language_format_func)
+selected_gender = st.selectbox("Gender", options=list(
+    gender_lookup.keys()), format_func=gender_format_func)
+selected_voice = st.selectbox("Voice", options=filter_and_format_voices(
+    selected_language, selected_gender), format_func=format_name)
+
+if st.button("Generate Voice for: " + guide + "," + poi, disabled= not has_output):
+    with st.spinner('Generating Voice'):
+        start_time = time.time()
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        st.write(f"Voice generated in {elapsed_time:.2f} seconds")
