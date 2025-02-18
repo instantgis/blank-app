@@ -11,6 +11,10 @@ DEFAULT_POST_PROMPT = ("Do not include any formatting in your answer. "
 
 REPLICATE_API_TOKEN = st.secrets["REPLICATE_API_TOKEN"]
 REPLICATE_MODEL_DEEPSEEK = st.secrets["REPLICATE_MODEL_DEEPSEEK"]
+REPLICATE_MODEL_KOKORO = st.secrets["REPLICATE_MODEL_KOKORO"]
+
+st.write(REPLICATE_MODEL_KOKORO)
+
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
 
@@ -60,6 +64,7 @@ def format_name(voice):
     return voice["name"]
 
 has_output = False
+last_narrative = None
 
 st.title("🎈 Audio Guide")
 st.subheader(" Content Creator Assistant")
@@ -91,7 +96,7 @@ final_prompt = final_prompt + prompt + " "
 if (include_post):
     final_prompt = final_prompt + post
 
-input = {"prompt": final_prompt}
+voice_input = {"prompt": final_prompt}
 
 final = st.text_area("Final-Prompt", final_prompt)
 
@@ -130,13 +135,14 @@ def split_thinking_response(data):
 if st.button("Generate Narrative for: " + guide + "," + poi):
     with st.spinner('Generating Narrative…'):
         start_time = time.time()
-        output = replicate.run(REPLICATE_MODEL_DEEPSEEK, input=input)
+        output = replicate.run(REPLICATE_MODEL_DEEPSEEK, input=voice_input)
         end_time = time.time()
         elapsed_time = end_time - start_time
         st.write(f"Narrative generated in {elapsed_time:.2f} seconds")
         thinking, response = split_thinking_response(output)
         st.text_area("Thinking", thinking)
         st.text_area("Response", response)
+        last_narrative = response
         has_output = True
 
 selected_language = st.selectbox(
@@ -146,9 +152,19 @@ selected_gender = st.selectbox("Gender", options=list(
 selected_voice = st.selectbox("Voice", options=filter_and_format_voices(
     selected_language, selected_gender), format_func=format_name)
 
+voice_input = {
+    "text": last_narrative,
+    "voice": "af_nicole"
+}
+
 if st.button("Generate Voice for: " + guide + "," + poi, disabled= not has_output):
     with st.spinner('Generating Voice'):
         start_time = time.time()
+        output = replicate.run(
+            REPLICATE_MODEL_KOKORO,
+            input=voice_input
+        )
         end_time = time.time()
         elapsed_time = end_time - start_time
         st.write(f"Voice generated in {elapsed_time:.2f} seconds")
+        st.write(output)
