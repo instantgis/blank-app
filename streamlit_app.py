@@ -36,19 +36,25 @@ unique_languages = {item["code"]: item["name"] for item in languages.data}
 # st.write(languages)
 # st.write(unique_languages)
 
+
 def language_format_func(option):
     return unique_languages[option]
 
+
 gender_lookup = {"m": "Male", "f": "Female"}
+
 
 def gender_format_func(option):
     return gender_lookup[option]
 
+
 def filter_and_format_voices(lang_code, gender):
     return [{"lang_code": voice["lang_code"], "name": voice["name"], "gender": voice["gender"]} for voice in voices.data if voice["lang_code"] == lang_code and voice["gender"] == gender]
 
+
 def format_name(voice):
     return voice["name"].split('_', 1)[1]
+
 
 if "last_narrative" not in st.session_state:
     st.session_state["last_narrative"] = ""
@@ -86,6 +92,7 @@ voice_input = {"prompt": final_prompt}
 
 final = st.text_area("Final-Prompt", final_prompt)
 
+
 def split_thinking_response(data):
     thinking = []
     response = []
@@ -117,6 +124,7 @@ def split_thinking_response(data):
 
     return thinking_str, response_str
 
+
 if st.button("Generate Narrative for: " + guide + "," + poi):
     with st.spinner('Generating Narrative…'):
         start_time = time.time()
@@ -133,21 +141,21 @@ if st.button("Generate Narrative for: " + guide + "," + poi):
 
 selected_language = st.selectbox(
     "Languages", unique_languages, format_func=language_format_func)
-# st.write(selected_language)
+st.write("selected_language",selected_language)
 
 selected_gender = st.selectbox("Gender", options=list(
     gender_lookup.keys()), format_func=gender_format_func)
-# st.write(selected_gender)
+st.write("selected_gender",selected_gender)
 
 filtered_voices = filter_and_format_voices(
     selected_language, selected_gender)
-# st.write(filtered_voices)
+st.write("filtered_voices",filtered_voices)
 
 selected_voice = st.selectbox(
     "Voice", options=filtered_voices, format_func=format_name)
-# st.write(selected_voice)
+st.write("selected_voice",selected_voice)
 
-if st.button("Generate Voice for: " + guide + "," + poi, disabled=len(st.session_state["last_narrative"]) == 0):
+if st.button("Generate Voice for: " + guide + "," + poi, disabled=len(st.session_state["last_narrative"]) == 0 or selected_language is None or selected_gender is None or selected_voice is None):
     with st.spinner('Generating Voice'):
         start_time = time.time()
         voice_input = {
