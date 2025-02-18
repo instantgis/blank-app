@@ -92,19 +92,32 @@ voice_input = {"prompt": final_prompt}
 
 final = st.text_area("Final-Prompt", final_prompt)
 
-
 def split_thinking_response(data):
     thinking = []
     response = []
     in_thinking = False
 
     for element in data:
-        if "<think>" in element:
+        if "<think>" in element and "</think>" in element:
+            parts_before_think, remaining = element.split("<think>")
+            thinking_part, parts_after_think = remaining.split("</think>")
+            if parts_before_think:
+                response.append(parts_before_think)
+            thinking.append(thinking_part)
+            if parts_after_think:
+                response.append(parts_after_think)
+        elif "<think>" in element:
             in_thinking = True
-            thinking.append(element.replace("<think>", ""))
+            parts = element.split("<think>")
+            if parts[0]:
+                response.append(parts[0])
+            thinking.append(parts[1] if len(parts) > 1 else "")
         elif "</think>" in element:
+            parts = element.split("</think>")
+            thinking.append(parts[0])
+            if len(parts) > 1 and parts[1]:
+                response.append(parts[1])
             in_thinking = False
-            thinking.append(element.replace("</think>", ""))
         elif in_thinking:
             thinking.append(element)
         else:
@@ -115,15 +128,49 @@ def split_thinking_response(data):
     # Combine all response elements into a single string
     response_str = ''.join(response).strip()
 
-    # Move the element with </think> to the response if it has leading or lagging characters
-    if "</think>" in thinking_str:
-        end_index = thinking_str.find("</think>")
-        thinking_str = thinking_str[:end_index].strip()
-        response_str = thinking_str[end_index +
-                                    len("</think>"):].strip() + response_str
-
     return thinking_str, response_str
 
+import json
+import re
+
+def parse_geojson_string(input_string):
+    """
+    Parses a string containing GeoJSON data, removing common markdown-like
+    code block markers and validating the basic GeoJSON structure.
+
+    Args:
+        input_string: The string to parse.
+
+    Returns:
+        A Python dictionary representing the GeoJSON data if parsing is successful
+        and the data is valid.  Returns None otherwise.
+    """
+
+    # 1. Trim leading/trailing whitespace
+    cleaned_string = input_string.strip()
+
+    # 2. Remove common code block markers (```json, ```geojson, ```)
+    cleaned_string = re.sub(r"^```(json|geojson)?\s*", "", cleaned_string)  # Remove leading markers
+    cleaned_string = re.sub(r"```\s*$", "", cleaned_string)  # Remove trailing markers
+
+    # 3. Trim whitespace again in case the markers added some.
+    cleaned_string = cleaned_string.strip()
+
+    # 4. Attempt to parse the cleaned string as JSON.
+    try:
+        geojson_data = json.loads(cleaned_string)
+
+        # 5. Validate GeoJSON structure (Basic check: 'type' and 'features' properties)
+        if isinstance(geojson_data, dict) and \
+           geojson_data.get("type") == "FeatureCollection" and \
+           isinstance(geojson_data.get("features"), list):
+            return geojson_data  # Return the parsed and validated GeoJSON
+        else:
+            raise ValueError("Invalid GeoJSON format: Missing 'type' or 'features' properties.")
+
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"Error parsing or validating GeoJSON: {e}")
+        return None  # Or handle the error as appropriate.  Could raise instead.
 
 if st.button("Generate Narrative for: " + guide + "," + poi):
     with st.spinner('Generating Narrative…'):
@@ -137,7 +184,9 @@ if st.button("Generate Narrative for: " + guide + "," + poi):
         st.text_area("Thinking", thinking)
         st.text_area("Response", response)
         st.session_state["last_narrative"] = response
-        # st.text_area("last_narrative", st.session_state.last_narrative)
+        if "GeoJSON" in final_prompt:
+            geoJSON = parse_geojson_string(response)
+            st.text_area("geojson", geoJSON)
 
 selected_language = st.selectbox(
     "Languages", unique_languages, format_func=language_format_func)
